@@ -111,11 +111,15 @@ def upload():
         "errors": errors if errors else None
     }), 200
 
-if __name__ == '__main__':
-    port = int(os.getenv("PORT", 5000))
-    debug_mode = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
-
-    # Start bot polling in a background thread so the bot responds to /start
+# Start bot polling in a background thread so the bot responds to /start
+_bot_started = False
+def init_bot_thread():
+    global _bot_started
+    if _bot_started:
+        return
+    # If in debug mode, only start in the reloaded child process to prevent double polling
+    if os.getenv("DEBUG", "False").lower() in ("true", "1", "yes") and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
     if os.getenv("RUN_BOT_THREAD", "true").lower() in ("true", "1", "yes"):
         try:
             from bot import bot
@@ -126,8 +130,14 @@ if __name__ == '__main__':
             print("==================================================")
             bot_thread = threading.Thread(target=lambda: bot.infinity_polling(skip_pending=True), daemon=True)
             bot_thread.start()
+            _bot_started = True
         except Exception as e:
             print(f"⚠️ Could not start Telegram bot thread: {e}")
 
-    print(f"Starting server on http://localhost:{port} (debug={debug_mode})...")
+init_bot_thread()
+
+if __name__ == '__main__':
+    port = int(os.getenv("PORT", 5000))
+    debug_mode = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+    print(f"Starting server on http://0.0.0.0:{port} (debug={debug_mode})...")
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
